@@ -1,0 +1,37 @@
+version: '3'
+
+services: 
+  db: 
+    image: toolchain/database
+    container_name: postgres
+    hostname: postgresql
+    networks:
+      - redmine_net
+    ports: 
+      - "5432:5432"
+    volumes: 
+      - redmine_db-vol:/var/lib/pgsql/9.6/data
+  redmine: 
+    image: toolchain/app
+    container_name: "redmine_container"
+    hostname: redmine
+    networks:
+      - redmine_net
+    ports:
+      - "80:80"
+    links:
+      - db:postgresql
+    volumes:
+      - redmine-vol:/var/lib/redmine
+      - httpd-vol:/etc/httpd/conf.d
+volumes:
+  redmine_db-vol:
+    driver: local
+  redmine-vol:
+    driver: local
+  httpd-vol:
+    driver: local
+networks:
+  redmine_net:
+    driver: bridge
+
