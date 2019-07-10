@@ -1,0 +1,62 @@
+FROM centos:7.3.1611
+
+LABEL author="TSDV Quan"
+
+################################################ Proxy info ################################################
+# set proxy env. Disable when deploy
+ENV http_proxy http://cuongpvgmo:qazxsw@proxy.tsdv.com.vn:3128
+ENV https_proxy http://cuongpvgmo:qazxsw@proxy.tsdv.com.vn:3128
+
+########################################### Setting environment #############################################
+ENV PATH /usr/pgsql-9.6/bin:/:$PATH
+ENV PGDATA /var/lib/pgsql/9.6/data 
+
+######################################### Setting work directory ############################################
+WORKDIR /tmp
+
+########################################### Setting files ###################################################
+COPY create_database.sql ./create_database.sql
+COPY setting_database.sql ./setting_database.sql
+
+######################################### Setting timezone ##################################################
+RUN ln -fs /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
+
+############################################ POSTGRESQL #####################################################
+# Install repo
+RUN yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm && \
+# Install PostgreSQL 9.6
+    yum install -y --nogpgcheck postgresql96 postgresql96-server postgresql96-contrib postgresql96-devel && \
+# Clean
+    yum clean all
+# Init database and change configuration
+USER postgres
+RUN /usr/pgsql-9.6/bin/initdb -D $PGDATA --encoding=UTF8 --locale=C && \
+    cp -p $PGDATA/postgresql.conf $PGDATA/postgresql.conf.org && \
+    echo "listen_addresses = '*'"                                >> $PGDATA/postgresql.conf && \
+    echo "port = 5432"                                           >> $PGDATA/postgresql.conf && \
+    cp -p $PGDATA/pg_hba.conf $PGDATA/pg_hba.conf.org && \
+    echo "# PostgreSQL Client Authentication Configuration File" >> $PGDATA/pg_hba.conf && \
+    echo "# ===================================================" >> $PGDATA/pg_hba.conf && \
+    echo "local all all              trust"                      >> $PGDATA/pg_hba.conf && \
+    echo "host  all all 0.0.0.0/0    md5"                        >> $PGDATA/pg_hba.conf && \
+    echo "host  all all ::/0         md5"                        >> $PGDATA/pg_hba.conf
+# Create user and database redmine
+RUN /usr/pgsql-9.6/bin/pg_ctl -D $PGDATA start && \
+    sleep 10s && \
+    psql -f /tmp/create_database.sql && \
+    psql -d redmine -f /tmp/setting_database.sql && \
+    /usr/pgsql-9.6/bin/pg_ctl -D $PGDATA stop
+
+######################################### Post installation ##################################################
+# Clean cache
+USER root
+RUN rm -rf /var/cache/yum
+
+# Set password postgres 
+RUN echo postgres | passwd postgres --stdin
+
+# Set listen port
+EXPOSE 5432
+
+# Set entry point
+ENTRYPOINT su postgres -c '/usr/pgsql-9.6/bin/postgres -D $PGDATA'
