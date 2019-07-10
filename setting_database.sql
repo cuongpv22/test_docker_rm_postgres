@@ -1,0 +1,2 @@
+CREATE ROLE redmine with LOGIN PASSWORD 'redmine';
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO redmine;
